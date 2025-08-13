@@ -1,0 +1,17 @@
+# .gitignore
+__pycache__/
+*.pyc
+*.pkl
+*.npy
+*.npz
+*.log
+.DS_Store
+.env
+venv/
+.ipynb_checkpoints/
+capture_data/
+data/*
+capture_data/*
+saved_models/*
+*.txt
+plots/*
