@@ -16,6 +16,7 @@ from pipeline.run_s_similarity import (
 from pipeline.run_c_similarity import (
     create_input_features_lfm,
     check_size_lfm_features_together,
+    step1_create_features,
 )
 
 if __name__ == "__main__":
@@ -33,5 +34,6 @@ if __name__ == "__main__":
     # identify_anchor_packets()
     # run_hac_clustering()
     # get_segments_input_c_similarity()
-    create_input_features_lfm()
+    # create_input_features_lfm()
     # check_size_lfm_features_together()
+    step1_create_features()

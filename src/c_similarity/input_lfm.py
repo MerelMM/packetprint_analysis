@@ -30,6 +30,7 @@ def create_N_grams(packet_sizes, N):
 
 
 def construct_input_lfm_training(
+    app_name: str,
     segment: List[int],
     segment_times: List[float],
     segment_labels: List[int],
@@ -67,7 +68,7 @@ def construct_input_lfm_training(
     # something fishy seems to be going on with the pf -> stored??? should labels not be per packet zodat weet of 1gram label1
     # s = 1: packet-level features + ANY-in-window labels
     packet_features = create_N_grams(segment, N)  # shape (L-2N, 2N+1)
-    packet_labels = make_ngram_labels(segment_labels, N)  # shape (L-2N,)
+    packet_labels = make_ngram_labels(segment_labels, app_name, N)  # shape (L-2N,)
     t0 = {"features": packet_features, "labels": packet_labels}
 
     if N > 0 and packet_features.shape[0] > 0:
@@ -124,10 +125,10 @@ def construct_input_lfm_training(
     return t0, t1, t5
 
 
-def make_ngram_labels(segment_labels, N):
+def make_ngram_labels(segment_labels, app_name, N):
     labels = []
     for i in range(1, len(segment_labels) - N):
-        if 1 in segment_labels[i - N : i + N + 1]:
+        if app_name in segment_labels[i - N : i + N + 1]:
             labels.append(1)
         else:
             labels.append(0)
@@ -165,7 +166,7 @@ def get_features_from_ixs(packet_features, ixs, N):
         return np.empty(0)
 
 
-def load_lfm_features_per_app(
+def get_lfm_features_per_app(
     app: str, input_dir: str = "data/lfm_features"
 ) -> List[Dict[str, Any]]:
     """Load LFM features for a single app from <input_dir>/<app>.pkl."""
@@ -177,6 +178,74 @@ def load_lfm_features_per_app(
         raise FileNotFoundError(f"No LFM features found for app '{app}' at {path}")
     with open(path, "rb") as f:
         return pickle.load(f)
+
+
+def get_lfm_features_per_app_segmented(app):
+    try:
+        with open(f"data/lfm_features_segmented/{app}", "rb") as f:
+            return pickle.load(f)
+    except:
+        Exception(f"App didn't have lfm input ready at data/lfm_features/{app}.pkl")
+
+
+def construct_input_lfm_per_app_segmented(
+    app: str,
+    segments: List[Dict[str, Any]] = None,
+    N: int = 1,
+    output_dir: str = "data/lfm_features_segmented",
+    load_features: bool = False,
+) -> List[Dict[str, Any]]:
+    """
+    Build hierarchical features per segment for a single app and save as a list:
+      [
+        {
+          "packet_lvl":   {"packets": np.ndarray, "labels": np.ndarray} | None,
+          "burst_lvl":    [ {"burst_features": np.ndarray, "label": int}, ... ],
+          "behavior_lvl": [ {"behavior_features": np.ndarray, "label": int}, ... ]
+        },
+        ...
+      ]
+    """
+    os.makedirs(output_dir, exist_ok=True)
+
+    if load_features:
+        return get_lfm_features_per_app_segmented(app, output_dir)
+
+    all_features: List[Dict[str, Any]] = []
+
+    for seg in segments:
+        print(f"Processing segment for {app}")
+
+        res = construct_input_lfm_training(
+            app, seg["packet_sizes"], seg["timestamps"], seg["labels"], N=N
+        )
+        if res is None:
+            continue
+
+        packets, bursts, behavior = res
+
+        # packet-level features
+        X = packets["features"]  # shape (n, 2N+1)
+        y = packets["labels"]  # shape (n,)
+        if isinstance(X, np.ndarray) and X.ndim == 2 and X.size > 0:
+            packet_data = {"packets": X, "labels": y}
+        else:
+            packet_data = None
+
+        segment_features = {
+            "packet_lvl": packet_data,
+            "burst_lvl": bursts if bursts else [],
+            "behavior_lvl": behavior if behavior else [],
+        }
+
+        all_features.append(segment_features)
+
+    out_path = os.path.join(output_dir, f"{app}")
+    with open(out_path, "wb") as f:
+        pickle.dump(all_features, f)
+    print(f"Saved per-segment features for {app} -> {out_path}")
+
+    return all_features
 
 
 def construct_input_lfm_per_app(
@@ -193,13 +262,14 @@ def construct_input_lfm_per_app(
         "burst_lvl":    [ {"burst_features": np.ndarray, "label": int}, ... ],
         "behavior_lvl": [ {"behavior_features": np.ndarray, "label": int}, ... ]
       }
-    Assumes `construct_input_lfm_training` returns: (packet_array, bursts_list, behavior_list),
+
+    Assumes construct_input_lfm_training returns: (packet_array, bursts_list, behavior_list),
     where packet_array is a 2D ndarray for that segment (not wrapped in a list).
     """
     os.makedirs(output_dir, exist_ok=True)
 
     if load_features:
-        return load_lfm_features_per_app(app, output_dir)
+        return get_lfm_features_per_app(app, output_dir)
 
     pkts: List[np.ndarray] = []
     pkts_labels: List[np.ndarray] = []
@@ -234,6 +304,7 @@ def construct_input_lfm_per_app(
         "packets": np.vstack(pkts) if pkts else None,
         "labels": np.concatenate(pkts_labels) if pkts_labels else None,
     }
+
     agg = {
         "packet_lvl": packet_all,
         "burst_lvl": bursts_all,
@@ -273,32 +344,57 @@ def construct_input_lfm_all_apps(
     return out
 
 
-def load_lf_features_app(app, input_dir="data/lfm_features") -> Dict[str, list]:
+def construct_input_lfm_all_apps_segmented(
+    segments_all_apps: Dict[str, List[Dict[str, Any]]],
+    N: int = 1,
+    output_dir: str = "data/lfm_features_segmented",
+    load_features: bool = False,
+) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Loads app-level LFM features from disk for a specific app.
-
-    Returns:
-        dict: {app_name: list of feature dicts}
+    Per-app wrapper: iterates apps and uses construct_input_lfm_per_app for each.
+    Returns {app: features}.
     """
-    features = {}
-    filename = app + ".pkl"
-    app = filename.replace(".pkl", "")
-    with open(os.path.join(input_dir, filename), "rb") as f:
-        features[app] = pickle.load(f)
-    return features
+    os.makedirs(output_dir, exist_ok=True)
+    out: Dict[str, List[Dict[str, Any]]] = {}
+
+    for app, segments in segments_all_apps.items():
+        out[app] = construct_input_lfm_per_app_segmented(
+            app=app,
+            segments=segments,
+            N=N,
+            output_dir=output_dir,
+            load_features=load_features,
+        )
+
+    return out
 
 
-def load_lfm_features(input_dir="data/lfm_features") -> Dict[str, list]:
-    """
-    Loads all saved app-level LFM features from disk.
+# def load_lf_features_app(app, input_dir="data/lfm_features") -> Dict[str, list]:
+#     """
+#     Loads app-level LFM features from disk for a specific app.
 
-    Returns:
-        dict: {app_name: list of feature dicts}
-    """
-    features = {}
-    for filename in os.listdir(input_dir):
-        if filename.endswith(".pkl"):
-            app = filename.replace(".pkl", "")
-            with open(os.path.join(input_dir, filename), "rb") as f:
-                features[app] = pickle.load(f)
-    return features
+#     Returns:
+#         dict: {app_name: list of feature dicts}
+#     """
+#     features = {}
+#     filename = app + ".pkl"
+#     app = filename.replace(".pkl", "")
+#     with open(os.path.join(input_dir, filename), "rb") as f:
+#         features[app] = pickle.load(f)
+#     return features
+
+
+# def load_lfm_features(input_dir="data/lfm_features") -> Dict[str, list]:
+#     """
+#     Loads all saved app-level LFM features from disk.
+
+#     Returns:
+#         dict: {app_name: list of feature dicts}
+#     """
+#     features = {}
+#     for filename in os.listdir(input_dir):
+#         if filename.endswith(".pkl"):
+#             app = filename.replace(".pkl", "")
+#             with open(os.path.join(input_dir, filename), "rb") as f:
+#                 features[app] = pickle.load(f)
+#     return features

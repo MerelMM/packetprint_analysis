@@ -1,17 +1,53 @@
 from c_similarity.input_lfm import (
     construct_input_lfm_per_app,
+    construct_input_lfm_per_app_segmented,
+    get_lfm_features_per_app_segmented,
 )
 from c_similarity.recursive_lfm_training import (
     recursive_lfm_training,
     get_segment_features,
 )
+from utils.helper import sample_random_files, extract_app_from_dirname
 from c_similarity.greedy_feature_representation import greedy_feature_representation
-import json
-
-import json
 from typing import Dict, Any
 import os
 from s_similarity import load_segment
+
+#### TODO -- be sure to keep labels with segments of which specific apps are in there
+
+
+# a bit wasteful to have segmented and non-segmented --- TODO rewrite so that lf works with segmented
+# i think already done, -- check before deleting (TODO)
+def step1_create_features():
+    # Step 1: run_only 1 time for creating the features of the segments
+    files = sample_random_files("data/lfm_features")  # samples 5 files
+    for file in files:
+        segments = load_segment(extract_app_from_dirname(file))
+        construct_input_lfm_per_app_segmented(extract_app_from_dirname(file), segments)
+        step2_load_features_train_lfm_model()
+
+
+def step2_load_features_train_lfm_model():
+    dir_path = "data/lfm_features_segmented"
+    all_apps = [
+        f for f in os.listdir(dir_path) if os.path.isfile(os.path.join(dir_path, f))
+    ]
+    target_app = all_apps[0]
+    features = get_lfm_features_per_app_segmented(target_app)
+    step3_create_dtrain_for_compression(all_apps, target_app, features)
+
+
+def step3_create_dtrain_for_compression(all_apps, target_app, features):
+    pass
+
+
+def step3_compress_feature_vectors(app="com.meetup"):
+    app = "com.meetup"
+
+    # sample random files to get their segments to create the D_negative training set
+    files = sample_random_files("data/lfm_features")
+    segments = load_segment(app)
+    # load segment_features of some random other apps as negative d_train set
 
 
 def create_input_features_lfm(

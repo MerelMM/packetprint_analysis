@@ -14,128 +14,122 @@ from c_similarity.input_lfm import construct_input_lfm_per_app
 #####
 # TODO: maak segment features ipv window 5 features!!
 ######
-def get_segment_features(
-    app, lfm_dir="data/lfm_features"
-) -> Tuple[List[set], List[set]]:
-    """
-    Construeert de trainingsdata D+ en D- voor greedy feature selectie.
+# def get_segment_features(
+#     app, app_segments, lfm_dir="data/lfm_features"
+# ) -> Tuple[List[set], List[set]]:
+#     """
+#     Construeert de trainingsdata D+ en D- voor greedy feature selectie.
 
-    Returns:
-        D_pos: Lijst van sets met indices van actieve woorden voor positieve samples.
-        D_neg: Idem voor negatieve samples.
-    """
-    D_pos = []
-    D_neg = []
+#     Returns:
+#         D_pos: Lijst van sets met indices van actieve woorden voor positieve samples.
+#         D_neg: Idem voor negatieve samples.
+#     """
+#     D_pos = []
+#     D_neg = []
 
-    # Laad de gelabelde LFM feature mapping voor de target app
-    load_path = f"data/{app}/lfm_models.pkl"
-    with open(load_path, "rb") as f:
-        V, model1, stage2_info, stage3_info = pickle.load(f)
+#     # Laad de gelabelde LFM feature mapping voor de target app
+#     load_path = f"data/{app}/lfm_models.pkl"
+#     with open(load_path, "rb") as f:
+#         V, model1, stage2_info, stage3_info = pickle.load(f)
 
-    idf_2 = stage2_info["idf"]
-    model_s2 = stage2_info["model_s2"]
-    non_empty_burst_window = stage2_info["non_empty_burst_window"]
+#     idf_2 = stage2_info["idf"]
+#     model_s2 = stage2_info["model_s2"]
+#     non_empty_burst_window = stage2_info["non_empty_burst_window"]
 
-    idf_3 = stage3_info["idf"]
-    model_s3 = stage3_info["model_s3"]
-    non_empty_behavior_window = stage3_info["non_empty_behavior_window"]
-    labels_corr_app = stage3_info["labels_corr_app"]
-    features_vectors_corr_app = stage3_info["features_vectors_corr_app"]
+#     idf_3 = stage3_info["idf"]
+#     model_s3 = stage3_info["model_s3"]
+#     non_empty_behavior_window = stage3_info["non_empty_behavior_window"]
+#     labels_corr_app = stage3_info["labels_corr_app"]
+#     features_vectors_corr_app = stage3_info["features_vectors_corr_app"]
 
-    # Models for level 1, 2, 3
-    models = [None, model1, model_s2, model_s3]
-    V0 = V[0]
-    V1 = V[1]
+#     # Models for level 1, 2, 3
+#     models = [None, model1, model_s2, model_s3]
+#     V0 = V[0]
+#     V1 = V[1]
 
-    # Voeg positieve en negatieve voorbeelden van target app toe
-    for i, label in enumerate(labels_corr_app):
-        active_indices = set(np.where(features_vectors_corr_app[i] > 0)[0])
-        if label == 1:
-            D_pos.append(active_indices)
-        else:
-            D_neg.append(active_indices)
+#     # Voeg positieve en negatieve voorbeelden van target app toe
+#     if len(D_neg) >= len(D_pos):
+#         return D_neg, D_pos
+#     else:
+#         print(
+#             "Here we have a case that there where not enough negative parts in the proposed windows"
+#         )
 
-    if len(D_neg) >= len(D_pos):
-        return D_neg, D_pos
-    else:
-        print(
-            "Here we have a case that there where not enough negative parts in the proposed windows"
-        )
+#     # Loop over ALLE ANDERE apps (excl. target app)
+#     for other_app in os.listdir(lfm_dir):
+#         if other_app == app:
+#             continue
 
-    # Loop over ALLE ANDERE apps (excl. target app)
-    for other_app in os.listdir(lfm_dir):
-        if other_app == app:
-            continue
+#         app_path = os.path.join(lfm_dir, other_app)
+#         try:
+#             for segment in segments:
+#                 features = construct_input_lfm_per_app(other_app, load_features=True)
+#                 features = features[0]
+#         except Exception as e:
+#             print(f"[!] Fout bij laden van features voor {other_app}: {e}")
+#             continue
 
-        app_path = os.path.join(lfm_dir, other_app)
-        try:
-            features = construct_input_lfm_per_app(other_app, load_features=True)
-            features = features[0]
-        except Exception as e:
-            print(f"[!] Fout bij laden van features voor {other_app}: {e}")
-            continue
+#         window_2s = features["burst_lvl"]
+#         window_5s = features["behavior_lvl"]
 
-        window_2s = features["burst_lvl"]
-        window_5s = features["behavior_lvl"]
+#         cur_window = 0
+#         fv = []
+#         y = []
 
-        cur_window = 0
-        fv = []
-        y = []
+#         while cur_window < len(window_5s):
+#             if len(window_5s[cur_window]["behavior_features"]) == 0:
+#                 cur_window += 1
+#                 continue
 
-        while cur_window < len(window_5s):
-            if len(window_5s[cur_window]["behavior_features"]) == 0:
-                cur_window += 1
-                continue
+#             z_s2, _, _, _ = zt_bursts(
+#                 window_2s[cur_window : cur_window + 5],
+#                 V,
+#                 models,
+#                 idf_2,
+#                 non_empty_burst_window,
+#             )
+#             if len(z_s2) == 0:
+#                 cur_window += 1
+#                 continue
 
-            z_s2, _, _, _ = zt_bursts(
-                window_2s[cur_window : cur_window + 5],
-                V,
-                models,
-                idf_2,
-                non_empty_burst_window,
-            )
-            if len(z_s2) == 0:
-                cur_window += 1
-                continue
+#             words_packets = np.unique(
+#                 window_5s[cur_window]["behavior_features"], axis=0
+#             )
+#             leafs1 = models[1].apply(words_packets)
+#             leafs2 = models[2].apply(z_s2)
 
-            words_packets = np.unique(
-                window_5s[cur_window]["behavior_features"], axis=0
-            )
-            leafs1 = models[1].apply(words_packets)
-            leafs2 = models[2].apply(z_s2)
+#             z_t = np.zeros(len(V0) + len(V1), dtype=float)
+#             for ix, v in enumerate(V0):
+#                 if np.any(leafs1 == v):
+#                     z_t[ix] = 1.0
+#             for ix, v in enumerate(V1):
+#                 if np.any(leafs2 == v):
+#                     z_t[len(V0) + ix] = 1.0
 
-            z_t = np.zeros(len(V0) + len(V1), dtype=float)
-            for ix, v in enumerate(V0):
-                if np.any(leafs1 == v):
-                    z_t[ix] = 1.0
-            for ix, v in enumerate(V1):
-                if np.any(leafs2 == v):
-                    z_t[len(V0) + ix] = 1.0
+#             label = window_5s[cur_window]["label"]
+#             fv.append(z_t)
+#             y.append(label)
+#             cur_window += 1
 
-            label = window_5s[cur_window]["label"]
-            fv.append(z_t)
-            y.append(label)
-            cur_window += 1
+#         # IDF normalisatie
+#         if fv:
+#             fv = np.vstack(fv)
+#             for ix, df in idf_3.items():
+#                 fv[:, ix] *= math.log(non_empty_behavior_window / df)
+#             y = np.asarray(y)
 
-        # IDF normalisatie
-        if fv:
-            fv = np.vstack(fv)
-            for ix, df in idf_3.items():
-                fv[:, ix] *= math.log(non_empty_behavior_window / df)
-            y = np.asarray(y)
+#             for i, label in enumerate(y):
+#                 active_indices = set(np.where(fv[i] > 0)[0])
+#                 if label == 1:
+#                     D_pos.append(active_indices)
+#                 else:
+#                     D_neg.append(active_indices)
 
-            for i, label in enumerate(y):
-                active_indices = set(np.where(fv[i] > 0)[0])
-                if label == 1:
-                    D_pos.append(active_indices)
-                else:
-                    D_neg.append(active_indices)
-
-    return D_pos, D_neg
+#     return D_pos, D_neg
 
 
 def recursive_lfm_training(
-    features,
+    segment_features_list,
     app,
 ) -> Tuple[
     List[List[int]],
@@ -149,21 +143,39 @@ def recursive_lfm_training(
     Returns:
         (V, M1, M2, M3) where V = [V0, V1, V2] (lists of positive-leaf IDs per level)
     """
-    packets = features["packet_lvl"]
-    window_2s = features["burst_lvl"]
-    window_5s = features["behavior_lvl"]
-    V: List[List[int]] = []  # FIX: make it explicit this is a list per level
-    models: dict[int, DecisionTreeClassifier] = {}
 
+    packets = {
+        "packets": [],
+        "labels": [],
+    }
+
+    window_2s = []
+    window_5s = []
+
+    for seg in segment_features_list:
+        # packet-level
+        packets["packets"].extend(seg["packet_lvl"]["packets"])
+        packets["labels"].extend(seg["packet_lvl"]["labels"])
+
+        # burst-level
+        window_2s.extend(seg["burst_lvl"])
+
+        # behavior-level
+        window_5s.extend(seg["behavior_lvl"])
+
+    V: List[List[int]] = []
+    models: dict[int, DecisionTreeClassifier] = {}
+    idf: dict[int, defaultdict] = {}
+    non_empty_window_counts: dict[int, int] = {}
     for s in [1, 2, 3]:
         if s == 1:
             z = np.asarray(packets["packets"])
             y = np.asarray(packets["labels"])
         elif s == 2:
-            z, y, idf_2, non_empty_burst_window = zt_bursts(window_2s, V, models)
+            z, y, idf[s], non_empty_window_counts[s] = zt_bursts(window_2s, V, models)
         else:  # s == 3
-            z, y, idf_3, non_empty_behavior_window = zt_behavior(
-                window_5s, window_2s, V, idf_2, models, non_empty_burst_window
+            z, y, idf[s], non_empty_window_counts[s] = zt_behavior(
+                window_5s, window_2s, V, idf[2], models, non_empty_window_counts[2]
             )
 
         # train mapper at the current scale
@@ -175,27 +187,72 @@ def recursive_lfm_training(
         pos_leaves = extract_positive_leaves(model, z, y)  # returns list[int]
         V.append(list(pos_leaves))
 
-    result = (
-        V,
-        models[1],
-        {
-            "idf": idf_2,
-            "model_s2": models[2],
-            "non_empty_burst_window": non_empty_burst_window,
-        },
-        {
-            "idf": idf_3,
-            "model_s3": models[3],
-            "non_empty_behavior_window": non_empty_behavior_window,
-            "features_vectors_corr_app": z,
-            "labels_corr_app": y,
-        },
-    )
-    save_path = f"data/{app}/lfm_models.pkl"
+    result = {
+        "vocabulary": V,
+        "models": models,
+        "idf": idf,
+        "non_empty_window_counts": non_empty_window_counts,
+    }
+
+    save_path = f"data/lfm_models/{app}.pkl"
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     with open(save_path, "wb") as f:
         pickle.dump(result, f)
     return result
+
+
+def convert_segment_to_feature_vector(
+    segment_features, app, saved_path="data/lfm_models/"
+):
+
+    # segment will be with its features
+    with open(saved_path, "wb") as f:
+        converting_info = pickle.load(f)
+    V = converting_info["vocabulary"]
+    models = converting_info["models"]
+    idf = converting_info["idf"]
+    non_empty_window_counts = converting_info["non_empty_window_counts"]
+
+    # packets = segment_features["packet_lvl"]
+    window_2s = segment_features["burst_lvl"]
+    window_5s = segment_features["behavior_lvl"]
+    # packets["packets"].extend(seg["packet_lvl"]["packets"])
+    # packets["labels"].extend(seg["packet_lvl"]["labels"])
+    V: List[List[int]] = []  # FIX: make it explicit this is a list per level
+    models: dict[int, DecisionTreeClassifier] = {}
+
+    zt = np.zeros(np.sum(len(v) for v in V))
+
+    for i in range(len(window_5s) - 4):
+        leafs1 = np.empty(len(V[0]))
+        for burst_packets in window_2s[i : i + 5]:
+            # per burst door model halen
+            if len(burst_packets) == 0:
+                continue  # burst window was empty
+            leafs1 = np.vstack(models[1].apply(burst_packets))
+
+        if len(leafs1) == 0:
+            continue  # behavior window was empty
+
+        for ix, v in enumerate(V[0]):
+            if np.any(leafs1 == v):
+                zt[ix] = 1
+
+        for ix, df in idf[2].items():
+            zt[:, ix] *= math.log(non_empty_window_counts[2] / df)
+
+        # nu dus resultaat van burst -> kijk of deze
+        leafs2 = models[2].apply(zt[:, : len(V[0])])
+        for ix, v in enumerate(V[1]):
+            if np.any(leafs2 == v):
+                zt[ix + len(V[0])] = 1
+        # this is the end of the behaviorwindow -> collect these and then put through last model for segment
+
+    leafs3 = models[3].apply(zt[:, : len(V[0]) + len(V[1])])
+    for ix, v in enumerate(V[2]):
+        if np.any(leafs3 == v):
+            zt[ix + len(V[0]) + len(V[1])] = 1
+    return zt
 
 
 def zt_behavior(window_5s, window_2s, V, idf_2, models, non_empty_burst_window):

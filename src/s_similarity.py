@@ -291,7 +291,6 @@ def get_segments(
     segment_clusters: Dict[str, list],
     data: Dict[str, Any],
     save_dir: str = "data/segments_per_app",
-    train: bool = True,
 ) -> Dict[str, list]:
     """
     Extract packet times and sizes that fall within the clustered target segments
@@ -321,7 +320,7 @@ def get_segments(
             for ix, timestamp in enumerate(data["timestamps"]):
                 if start_time <= timestamp <= end_time:
                     current_segment_time.append(timestamp)
-                    current_segment_label.append(1 if data["labels"][ix] == app else 0)
+                    current_segment_label.append(data["labels"][ix])
                     current_segment_packet.append(data["packet_sizes"][ix])
                 elif timestamp > end_time:
                     break  # timestamps assumed sorted
