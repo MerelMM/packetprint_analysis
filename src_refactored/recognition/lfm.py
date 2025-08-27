@@ -40,6 +40,11 @@ def recursive_lfm_training(
 
     for seg in segment_features_list:
         # packet-level
+        if (
+            len(seg["packet_lvl"]["packets"]) < 10
+        ):  # not in the paper, but too short otherwise, a bit randomly chosen, but so are other things
+            print("should not be here anymore, should already be filtered?")
+            continue
         packets["packets"].extend(seg["packet_lvl"]["packets"])
         packets["labels"].extend(seg["packet_lvl"]["labels"])
 
@@ -117,8 +122,10 @@ def raw_features_to_lfm(app, segment_features, saved_path="data/lfm_models/"):
 
     # packets = segment_features["packet_lvl"]
     seg_fv = []
+    seg_labels = []
 
     for seg in segment_features:
+        label = 0
 
         # extract all burst raw features and behavior raw features of the segment
         window_2s = seg["burst_lvl"]
@@ -152,7 +159,7 @@ def raw_features_to_lfm(app, segment_features, saved_path="data/lfm_models/"):
                 for ix, v in enumerate(V[0]):
                     if v in packet_lvl_leafs_bursts:
                         burst_input[ix] = 1 * math.log(
-                            non_empty_window_counts[2] / idf[2][ix]
+                            non_empty_window_counts[2] / max(idf[2][ix], 1)
                         )  # burst input -> needs to be idf'd with the idf of bursts (on which the model M2 was trained)
 
                 # collect the burst feature input in the behavioral window
@@ -169,7 +176,7 @@ def raw_features_to_lfm(app, segment_features, saved_path="data/lfm_models/"):
             for ix, v in enumerate(V[1]):
                 if v in burst_lvl_leafs:
                     behavior_input[ix + len(V[0])] = 1 * math.log(
-                        non_empty_window_counts[3] / idf[3][ix + len(V[0])]
+                        non_empty_window_counts[3] / max(idf[3][ix + len(V[0])], 1)
                     )
 
             # if any of the burst windows has the packet feature, the packet feature is present in the behavioral window
@@ -177,14 +184,16 @@ def raw_features_to_lfm(app, segment_features, saved_path="data/lfm_models/"):
             for col in range(len(V[0])):
                 if np.any(fv_bursts[:, col] != 0):
                     behavior_input[col] = math.log(
-                        non_empty_window_counts[3] / idf[3][col]
+                        non_empty_window_counts[3] / max(idf[3][col], 1)
                     )
 
             # collect the behavioral feature input of the segment
             fv_behavior.append(behavior_input)
+            label = max(label, window_5s[i]["label"])
 
         if len(fv_behavior) == 0:
-            raise Exception("Empty segment found")
+            print(seg)
+            continue
         # if any of the behavior features have the word, the word is in the segment
         fv_behavior = np.vstack(fv_behavior)
         for col in range(len(V[0]) + len(V[1])):
@@ -199,7 +208,9 @@ def raw_features_to_lfm(app, segment_features, saved_path="data/lfm_models/"):
 
         # lfm feature of segment completed
         seg_fv.append(zt)
-    return np.vstack(seg_fv)
+        seg_labels.append(label)
+
+    return np.vstack(seg_fv), np.vstack(seg_labels)
 
 
 def _zt_behavior(window_5s, window_2s, V, idf_2, models, non_empty_burst_window):
@@ -238,20 +249,27 @@ def _zt_behavior(window_5s, window_2s, V, idf_2, models, non_empty_burst_window)
         # ???? test if this gives the same
         leafs2 = models[2].apply(z)
 
+        # initialize behavior window fv with zero-vector
         z_t = np.zeros(len(V0) + len(V1), dtype=float)
-        for ix, v in enumerate(V0):  # FIX: iterate V0, not V
+
+        # if packet level words present, value is 1
+        for ix, v in enumerate(V0):
             if np.any(leafs1 == v):
                 z_t[ix] = 1.0
                 idf[ix] += 1
-        for ix, v in enumerate(V1):  # FIX: iterate V0, not V
+        # if burst level words present, value is 1
+        for ix, v in enumerate(V1):
             if np.any(leafs2 == v):
                 z_t[len(V0) + ix] = 1.0
                 idf[len(V0) + ix] += 1
 
         labels.append(window_5s[cur_window]["label"])
+
+        # collect all behavior input vectors to train model
         fv.append(z_t)
         cur_window += 1
 
+    # based on the idfs, reweight the behavior input fvs
     if fv:
         fv = np.vstack(fv)
         # Boolean tf * idf using count of non-empty windows i
@@ -262,6 +280,8 @@ def _zt_behavior(window_5s, window_2s, V, idf_2, models, non_empty_burst_window)
     else:
         z = np.empty((0, len(V0)))
         y = np.empty((0,))
+
+    # return the behavioral fvs with labels to train model as well as idf and non_empty_behavior_window number later for during inference time
     return z, y, idf, non_empty_behavior_window
 
 

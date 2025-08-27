@@ -44,6 +44,8 @@ def extract_raw_features_segment(
 
         # packet-level features
         X = packets["features"]  # shape (n, 2N+1)
+        if len(X) < 10:
+            continue  # too short a segment -- a bit randomly chosen, but quite conservative 10 packets would come together in less than 5 seconds (if 1/2s arrival rate as minimum like in the paper chosen), in segments the time can be a lot longer, so conservatively chosen
         y = packets["labels"]  # shape (n,)
         if isinstance(X, np.ndarray) and X.ndim == 2 and X.size > 0:
             packet_data = {"packets": X, "labels": y}
@@ -137,7 +139,7 @@ def _construct_input_lfm_training(
                 packet_features=packet_features, ixs=behavior_ixs, N=N
             )
 
-            label_behavior = _get_label(segment_labels, behavior_ixs)
+            label_behavior = _get_label(app_name, segment_labels, behavior_ixs)
             # if len(behavior_features) == 0:
             #     print("geflaggerd but exactly what i want")
             t5.append(
@@ -150,7 +152,7 @@ def _construct_input_lfm_training(
         burst_features = _get_features_from_ixs(
             packet_features=packet_features, ixs=burst_ixs, N=N
         )
-        label_burst = _get_label(segment_labels, burst_ixs)
+        label_burst = _get_label(app_name, segment_labels, burst_ixs)
         t1.append(
             {
                 "burst_features": burst_features,
@@ -162,9 +164,9 @@ def _construct_input_lfm_training(
     return t0, t1, t5
 
 
-def _get_label(segment_labels, ixs):
+def _get_label(app_name, segment_labels, ixs):
     for i in ixs:
-        if segment_labels[i] == 1:
+        if segment_labels[i] == app_name:
             return 1
     return 0
 
