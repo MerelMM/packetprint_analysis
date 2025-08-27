@@ -167,6 +167,7 @@ def recursive_lfm_training(
     models: dict[int, DecisionTreeClassifier] = {}
     idf: dict[int, defaultdict] = {}
     non_empty_window_counts: dict[int, int] = {}
+
     for s in [1, 2, 3]:
         if s == 1:
             z = np.asarray(packets["packets"])
@@ -201,12 +202,13 @@ def recursive_lfm_training(
     return result
 
 
-def convert_segment_to_feature_vector(
+def convert_segments_to_feature_vectors(
     segment_features, app, saved_path="data/lfm_models/"
 ):
 
     # segment will be with its features
-    with open(saved_path, "wb") as f:
+    saved_path = os.path.join(saved_path, f"{app}.pkl")
+    with open(saved_path, "rb") as f:
         converting_info = pickle.load(f)
     V = converting_info["vocabulary"]
     models = converting_info["models"]
@@ -214,45 +216,57 @@ def convert_segment_to_feature_vector(
     non_empty_window_counts = converting_info["non_empty_window_counts"]
 
     # packets = segment_features["packet_lvl"]
-    window_2s = segment_features["burst_lvl"]
-    window_5s = segment_features["behavior_lvl"]
-    # packets["packets"].extend(seg["packet_lvl"]["packets"])
-    # packets["labels"].extend(seg["packet_lvl"]["labels"])
-    V: List[List[int]] = []  # FIX: make it explicit this is a list per level
-    models: dict[int, DecisionTreeClassifier] = {}
+    seg_fv = []
+    for seg in segment_features:
+        window_2s = seg["burst_lvl"]
+        window_5s = seg["behavior_lvl"]
 
-    zt = np.zeros(np.sum(len(v) for v in V))
+        zt = np.zeros(np.sum(len(v) for v in V))
 
-    for i in range(len(window_5s) - 4):
-        leafs1 = np.empty(len(V[0]))
-        for burst_packets in window_2s[i : i + 5]:
-            # per burst door model halen
-            if len(burst_packets) == 0:
-                continue  # burst window was empty
-            leafs1 = np.vstack(models[1].apply(burst_packets))
+        for i in range(len(window_5s) - 4):
+            burst_input = np.empty(len(V[0]))
+            fv_bursts = []
+            for burst_packets in window_2s[i : i + 5]:
+                # per burst door model halen
+                if len(burst_packets["burst_features"]) == 0:
+                    continue  # burst window was empty
+                burst_input_leafs = np.vstack(
+                    models[1].apply(burst_packets["burst_features"])
+                )
 
-        if len(leafs1) == 0:
-            continue  # behavior window was empty
+                if len(burst_input) == 0:
+                    continue  # behavior window was empty
+                for ix, v in enumerate(V[0]):
+                    if np.any(burst_input_leafs == v):
+                        burst_input[ix] = 1 * math.log(
+                            non_empty_window_counts[2] / idf[2][ix]
+                        )
+                fv_bursts.append(burst_input)
+            leafs2 = models[2].apply(np.vstack(fv_bursts))
+            # at end for -> should have 5 burst fv
+            for ix, v in enumerate(V[1]):
+                if np.any(leafs2 == v):
+                    zt[ix + len(V[0])] = 1 * math.log(
+                        non_empty_window_counts[3] / idf[3][ix]
+                    )
 
-        for ix, v in enumerate(V[0]):
-            if np.any(leafs1 == v):
-                zt[ix] = 1
+            leafs1 = models[1].apply(window_5s[i]["behavior_features"])
+            for ix, v in enumerate(V[1]):
+                if np.any(leafs1 == v):
+                    zt[ix] = 1 * math.log(non_empty_window_counts[3] / idf[3][ix])
+            for ix, v in enumerate(V[0]):
+                if np.any(leafs1 == v):
+                    zt[ix] = 1 * math.log(non_empty_window_counts[3] / idf[3][ix])
 
-        for ix, df in idf[2].items():
-            zt[:, ix] *= math.log(non_empty_window_counts[2] / df)
+        leafs3 = models[3].apply(zt[:, : len(V[0]) + len(V[1])])
+        for ix, v in enumerate(V[2]):
+            if np.any(leafs3 == v):
+                zt[ix + len(V[0]) + len(V[1])] = 1
+        seg_fv.append(zt)
+    return np.vstack(seg_fv)
 
-        # nu dus resultaat van burst -> kijk of deze
-        leafs2 = models[2].apply(zt[:, : len(V[0])])
-        for ix, v in enumerate(V[1]):
-            if np.any(leafs2 == v):
-                zt[ix + len(V[0])] = 1
-        # this is the end of the behaviorwindow -> collect these and then put through last model for segment
 
-    leafs3 = models[3].apply(zt[:, : len(V[0]) + len(V[1])])
-    for ix, v in enumerate(V[2]):
-        if np.any(leafs3 == v):
-            zt[ix + len(V[0]) + len(V[1])] = 1
-    return zt
+# make sure to include labels of the segment apps
 
 
 def zt_behavior(window_5s, window_2s, V, idf_2, models, non_empty_burst_window):
@@ -269,13 +283,13 @@ def zt_behavior(window_5s, window_2s, V, idf_2, models, non_empty_burst_window):
             cur_window += 1
             continue
 
-        z, y, _, _ = zt_bursts(
+        z, _, _, _ = zt_bursts(
             window_2s[cur_window : cur_window + 5],
             V,
             models,
             idf_2,
             non_empty_burst_window,
-        )
+        )  # process 5 bursts at a time, use the precomputed tdf of level s=2
         if len(z) == 0:
             cur_window += 1
             continue  # even when the behavior window is not empty, there might be too little data per second to have burst features
@@ -285,7 +299,10 @@ def zt_behavior(window_5s, window_2s, V, idf_2, models, non_empty_burst_window):
         non_empty_behavior_window += 1
         words_packets = np.unique(window_5s[cur_window]["behavior_features"], axis=0)
 
-        leafs1 = models[1].apply(words_packets)
+        leafs1 = models[1].apply(
+            words_packets
+        )  # -> this is already z? But should not normalized with idf of s=2 (burst lvl), maar voor behavior lvl
+        # ???? test if this gives the same
         leafs2 = models[2].apply(z)
 
         z_t = np.zeros(len(V0) + len(V1), dtype=float)
@@ -312,6 +329,7 @@ def zt_behavior(window_5s, window_2s, V, idf_2, models, non_empty_burst_window):
     else:
         z = np.empty((0, len(V0)))
         y = np.empty((0,))
+    return z, y, idf, non_empty_behavior_window
 
 
 def zt_bursts(
@@ -319,12 +337,12 @@ def zt_bursts(
 ):
     assert len(V) >= 1, "V0 must exist before level 2"
     V0 = V[0]
-    data = window_2s
     idf = defaultdict(int)
     fv = []
     labels = []
     non_empty_windows = 0
-    for window in data:
+
+    for window in window_2s:
         words = window.get("burst_features", [])
         if len(words) == 0:
             continue
@@ -337,23 +355,27 @@ def zt_bursts(
         for ix, v in enumerate(V0):  # FIX: iterate V0, not V
             if np.any(leafs == v):
                 z_t[ix] = 1.0
-                idf[ix] += 1
-        labels.append(window["label"])
-        fv.append(z_t)
-    if fv:
-        fv = np.vstack(fv)
+                idf[ix] += 1  # per burstwindow present +1
+        labels.append(window["label"])  # total label of the burst
+        fv.append(z_t)  # add to the processed burst windows
+    if fv:  # if not all bursts were empty
+        fv = np.vstack(fv)  # make fv numpy array by stacking elements
+
+        # if we are just using the function (like in behavior) -> use the precomputed idf
         if non_empty_burst_window is not None:
             non_empty_windows = non_empty_burst_window
-        # Boolean tf * idf using count of non-empty windows i
+        # same comment
         if idf_already_computed is not None:
             idf = idf_already_computed
         for ix, df in idf.items():
             fv[:, ix] *= math.log(non_empty_windows / df)
         z = fv
         y = np.asarray(labels)
+
     else:
         z = np.empty((0, len(V0)))
         y = np.empty((0,))
+
     return z, y, idf, non_empty_windows
 
 

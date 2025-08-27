@@ -15,18 +15,39 @@ import os
 import json
 import matplotlib.pyplot as plt
 from collections import defaultdict
+from pathlib import Path
 
 
-def test_training_sxgboost():
-    filtered_data = get_filtered_data_without_timestamps(load_existing=True)
+def concat_data_same_apps_for_s_similarity(
+    base_dir="capture_data",
+    file_name="packet_sizes.txt",
+    output_dir="concatenated_data",
+):
+    "all traces should be together"
+    base_path = Path(base_dir)
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
 
-    three_apps = {}
-    three_apps["App1"] = filtered_data["session_com.substack.app_20250721_135041"]
-    three_apps["App2"] = filtered_data[
-        "session_com.google.android.apps.maps_20250721_161501"
-    ]
-    three_apps["App3"] = filtered_data["session_com.bol.shop_20250721_162102"]
-    train_sxgboost_all_apps(data=three_apps)
+    # Group sessions by app name
+    app_sessions = {}
+    for session_dir in base_path.iterdir():
+        if session_dir.is_dir() and session_dir.name.startswith("session_"):
+            app_name = "_".join(session_dir.name.split("_")[1:-1])
+            app_sessions.setdefault(app_name, []).append(session_dir / file_name)
+
+    # Concatenate and save per app
+    for app_name, file_paths in app_sessions.items():
+        combined_lines = []
+        for path in sorted(file_paths):
+            if path.exists():
+                with open(path, "r") as f:
+                    combined_lines.extend(f.readlines())
+
+        output_file = output_path / f"{app_name}_{file_name}"
+        with open(output_file, "w") as f:
+            f.writelines(combined_lines)
+
+    print(f"Done. Concatenated files saved in: {output_path}")
 
 
 def train_sxgboost_on_all_captures():
@@ -35,27 +56,10 @@ def train_sxgboost_on_all_captures():
     Models are saved per app name in the configured save directory.
     """
     # Load preprocessed data without timestamps (training only)
-    filtered_data = get_filtered_data_without_timestamps(load_existing=True)
+    filtered_data = get_filtered_data_without_timestamps(load_existing=False)
     print(f"Training models for {len(filtered_data.keys())} apps...")
     train_sxgboost_all_apps(data=filtered_data)
     print("All models have been trained and saved.")
-
-
-def test_taking_s_similarity():
-    # test for trained on App1, but on App2 as negative example, App3 is ood
-    filtered_data = get_filtered_data_without_timestamps(
-        load_existing=True, train=False
-    )
-    apps_to_test = [
-        "session_com.substack.app_20250721_135041",
-        "session_com.google.android.apps.maps_20250721_161501",
-        "session_com.decathlon.app_20250721_132501",
-    ]
-    model_App1 = load_sxgboost_models("App1")
-    scores = {}
-    for session in apps_to_test:
-        scores[session] = compute_s_similarity(model_App1, filtered_data[session])
-        print(session, np.mean(scores[session]))
 
 
 def run_all_s_similarity(save_path="data/s_sxgboost_pairwise_results.json"):
@@ -99,64 +103,6 @@ def run_all_s_similarity(save_path="data/s_sxgboost_pairwise_results.json"):
 
     print(f"\nAll pairwise S-similarity scores saved to {save_path}")
     return pairwise_scores
-
-
-def plot_s_similarity_pos_neg(
-    results_path="data/s_sxgboost_pairwise_results.json",
-    save_plot_path="plots/s_similarity_pos_vs_neg.png",
-):
-    """
-    Plots a comparison of S-similarity scores for positive vs negative samples.
-
-    Args:
-        results_path (str): Path to JSON file with pairwise S-similarity scores.
-        save_plot_path (str): File path to save the generated plot.
-    """
-    # Load results
-    with open(results_path, "r") as f:
-        pairwise_scores = json.load(f)
-
-    positive_scores = []
-    negative_scores = []
-
-    # Separate positive vs negative scores
-    for model_app, test_scores in pairwise_scores.items():
-        for test_app, score in test_scores.items():
-            if test_app == model_app:
-                positive_scores.append(score)
-            else:
-                negative_scores.append(score)
-
-    # Plotting
-    plt.figure(figsize=(8, 5))
-    plt.hist(
-        positive_scores,
-        bins=20,
-        alpha=0.6,
-        label="Positive (same app)",
-        color="green",
-        density=True,
-    )
-    plt.hist(
-        negative_scores,
-        bins=20,
-        alpha=0.6,
-        label="Negative (different app)",
-        color="red",
-        density=True,
-    )
-
-    plt.title("S-Similarity: Positive vs Negative Samples")
-    plt.xlabel("S-Similarity Score")
-    plt.ylabel("Density")
-    plt.legend()
-    plt.grid(True)
-
-    os.makedirs(os.path.dirname(save_plot_path), exist_ok=True)
-    plt.savefig(save_plot_path, dpi=300)
-    plt.close()
-
-    print(f"Plot saved to {save_plot_path}")
 
 
 def serialized_input_s_similarity(
@@ -317,3 +263,95 @@ def get_segments_input_c_similarity(
     with open(hac_clusters, "r") as f:
         hac_clusters = json.load(f)
     return get_segments(hac_clusters, serialized_data)
+
+
+#############################################
+#               Tests and plots             #
+#############################################
+
+
+def test_training_sxgboost():
+    filtered_data = get_filtered_data_without_timestamps(load_existing=True)
+
+    three_apps = {}
+    three_apps["App1"] = filtered_data["session_com.substack.app_20250721_135041"]
+    three_apps["App2"] = filtered_data[
+        "session_com.google.android.apps.maps_20250721_161501"
+    ]
+    three_apps["App3"] = filtered_data["session_com.bol.shop_20250721_162102"]
+    train_sxgboost_all_apps(data=three_apps)
+
+
+def test_taking_s_similarity():
+    # test for trained on App1, but on App2 as negative example, App3 is ood
+    filtered_data = get_filtered_data_without_timestamps(
+        load_existing=True, train=False
+    )
+    apps_to_test = [
+        "session_com.substack.app_20250721_135041",
+        "session_com.google.android.apps.maps_20250721_161501",
+        "session_com.decathlon.app_20250721_132501",
+    ]
+    model_App1 = load_sxgboost_models("App1")
+    scores = {}
+    for session in apps_to_test:
+        scores[session] = compute_s_similarity(model_App1, filtered_data[session])
+        print(session, np.mean(scores[session]))
+
+
+def plot_s_similarity_pos_neg(
+    results_path="data/s_sxgboost_pairwise_results.json",
+    save_plot_path="plots/s_similarity_pos_vs_neg.png",
+):
+    """
+    Plots a comparison of S-similarity scores for positive vs negative samples.
+
+    Args:
+        results_path (str): Path to JSON file with pairwise S-similarity scores.
+        save_plot_path (str): File path to save the generated plot.
+    """
+    # Load results
+    with open(results_path, "r") as f:
+        pairwise_scores = json.load(f)
+
+    positive_scores = []
+    negative_scores = []
+
+    # Separate positive vs negative scores
+    for model_app, test_scores in pairwise_scores.items():
+        for test_app, score in test_scores.items():
+            if test_app == model_app:
+                positive_scores.append(score)
+            else:
+                negative_scores.append(score)
+
+    # Plotting
+    plt.figure(figsize=(8, 5))
+    plt.hist(
+        positive_scores,
+        bins=20,
+        alpha=0.6,
+        label="Positive (same app)",
+        color="green",
+        density=True,
+    )
+    plt.hist(
+        negative_scores,
+        bins=20,
+        alpha=0.6,
+        label="Negative (different app)",
+        color="red",
+        density=True,
+    )
+
+    plt.title("S-Similarity: Positive vs Negative Samples")
+    plt.xlabel("S-Similarity Score")
+    plt.ylabel("Density")
+    plt.legend()
+    plt.grid(True)
+
+    os.makedirs(os.path.dirname(save_plot_path), exist_ok=True)
+    plt.savefig(save_plot_path, dpi=300)
+    plt.close()
+
+    print(f"Plot saved to {save_plot_path}")

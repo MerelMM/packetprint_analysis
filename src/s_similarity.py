@@ -1,38 +1,14 @@
 import numpy as np
 import xgboost as xgb
 from sklearn.utils import resample
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Any
 import os
 import json
-from scipy.cluster.hierarchy import linkage, fcluster
-import pandas as pd
 from collections import defaultdict
 
 
-def create_N_grams_per_app(packet_data, N=6):
-    """
-    Constructs N-gram features for each packet in a sequence.
-    """
-    features = np.zeros([len(packet_data) - 2 * N, 2 * N + 1])
-    for i in range(N, len(packet_data) - N):
-        features[i - N] = packet_data[i - N : i + N + 1]
-    return features
-
-
-def extract_app_name(session_name: str) -> str:
-    """
-    Extract the app name from a folder name formatted like:
-    session_appname_timestamp
-    If it cannot parse, returns the full folder name.
-    """
-    parts = session_name.split("_")
-    if len(parts) >= 3:
-        return parts[1]  # 'appname' is typically the second field
-    return session_name
-
-
 def train_sxgboost_all_apps(
-    data: Dict[str, Dict[str, List[int]]], N=6, save_dir="saved_models"
+    data_per_sessions: Dict[Dict[str, List[int]]], N=6, save_dir="saved_models"
 ):
     """
     Trains one XGBoost model per app, distinguishing it from all other apps.
@@ -45,7 +21,7 @@ def train_sxgboost_all_apps(
         models: Dict mapping app -> trained model
     """
     models = {}
-
+    data = convert_sessions_to_size_dict_per_app(data_per_sessions)
     for app, packets in data.items():
         positive_data = packets
 
@@ -72,6 +48,41 @@ def train_sxgboost_all_apps(
     return models
 
 
+def convert_sessions_to_size_dict_per_app(data_sessions):
+    """data_session: Dict(Session_name: [(time, size)])"""
+    training_data = defaultdict(list)
+    for session_key, session_data in data_sessions.items():
+        app_key = extract_app_name(session_key)
+        data = [size for _time, size in session_data]
+        training_data[app_key].extend(data)
+    return training_data
+
+
+# in train_sxboost
+def create_N_grams_per_app(packet_data, N=6):
+    """
+    Constructs N-gram features for each packet in a sequence.
+    """
+    features = np.zeros([len(packet_data) - 2 * N, 2 * N + 1])
+    for i in range(N, len(packet_data) - N):
+        features[i - N] = packet_data[i - N : i + N + 1]
+    return features
+
+
+# in helper
+def extract_app_name(session_name: str) -> str:
+    """
+    Extract the app name from a folder name formatted like:
+    session_appname_timestamp
+    If it cannot parse, returns the full folder name.
+    """
+    parts = session_name.split("_")
+    if len(parts) >= 3:
+        return parts[1]  # 'appname' is typically the second field
+    return session_name
+
+
+# check
 def train_s_xgboost(X_pos, X_neg, N):
     """
     Train an XGBoost classifier for S-similarity with downsampled negatives.
@@ -148,6 +159,7 @@ def train_s_xgboost(X_pos, X_neg, N):
     return models
 
 
+# check
 def load_sxgboost_models(
     app_name: str, save_dir: str = "saved_models"
 ) -> List[xgb.Booster]:
@@ -191,6 +203,7 @@ def load_sxgboost_models(
     return models
 
 
+# check
 def compute_s_similarity(
     s_xgboost_models: Dict[str, List[xgb.Booster]],
     packet_sequence: List[int],
@@ -236,6 +249,7 @@ def compute_s_similarity(
     return s_scores
 
 
+#  in clusteringfile
 def hac_clustering(
     anchor_dict,
     epsilon=300,
@@ -369,31 +383,3 @@ def load_segment(
         segments = json.load(f)
 
     return segments
-
-
-# def compute_s_similarity(model : xgb.XGBClassifier, X):
-#     """
-#     Computes the S-similarity as the probability from XGBoost model.
-#     """
-#     probas = model.predict_proba(X)[:, 1]  # Probability that y == 1
-#     return probas
-
-
-# Example usage
-# if __name__ == "__main__":
-#     # Example data: directional packet sizes, where sign = direction
-#     # Positive = outbound, Negative = inbound
-#     packet_sizes = [100, -120, 110, -130, 90, -150, 95, -110, 105, -115]
-
-#     # Simulated labels: 1 = app of interest, 0 = noise
-#     labels = [1, 1, 1, 0, 0, 0, 1, 1, 0, 0]
-
-#     # Create N-gram sequential contexts
-#     N = 2
-#     X = generate_ngram_context(packet_sizes, N)
-#     y = np.array(labels)
-
-#     # Train model
-#     X_train, X_test, y_train, y_test = train_test_split(
-#         X, y, test_size=0.3, random_state=42
-#     )

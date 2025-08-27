@@ -1,21 +1,20 @@
 #!/bin/bash
 
-# Constants
-ROOT_DIR="../code/capture_data"
-PCAP_NAME="virtual_ap_filtered.pcap"
+# Configuration (must be passed in by the caller)
+ROOT_DIR="$ROOT_DIR"
+PCAP_NAME="${PCAP_NAME:-virtual_ap_filtered.pcap}"
 OUTPUT_NAME="packet_sizes.txt"
-AP_MAC="dc:4e:f4:0a:42:6f"
-DEVICE_MAC="fa:97:c8:94:78:8d"
-WPA2_OVERHEAD=16
+AP_MAC="$AP_MAC"
+DEVICE_MAC="$DEVICE_MAC"
+WPA2_OVERHEAD="${WPA2_OVERHEAD:-16}"
 
-echo "📡 Extracting per-file packet sizes..."
+echo "Extracting packet sizes from filtered pcap files..."
 
-# Find all pcap files and process them
 find "$ROOT_DIR" -type f -name "$PCAP_NAME" | while read -r PCAP; do
     DIR=$(dirname "$PCAP")
     OUTPUT_FILE="$DIR/$OUTPUT_NAME"
 
-    echo "🔍 Processing: $PCAP"
+    echo "Processing: $PCAP"
     > "$OUTPUT_FILE"
 
     tshark -r "$PCAP" \
@@ -32,7 +31,7 @@ find "$ROOT_DIR" -type f -name "$PCAP_NAME" | while read -r PCAP; do
         fi
     done
 
-    echo "✅ Saved: $OUTPUT_FILE"
+    echo "Saved to: $OUTPUT_FILE"
 done
 
-echo "🏁 Done processing all pcap files."
+echo "Done processing all pcap files."

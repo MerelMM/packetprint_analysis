@@ -7,7 +7,7 @@ LOG_FILE="filter_mac_pairs_output.log"
 # Empty the log file at the start
 : > "$LOG_FILE"
 
-for dir in capture_data/*/; do
+for dir in "${OUTPUT_DIR:-capture_data}"/*/; do
     PCAP_FILE="${dir}virtual_ap.pcap"
     OUTPUT_FILE="${dir}virtual_ap_filtered.pcap"
 

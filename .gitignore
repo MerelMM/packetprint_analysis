@@ -15,3 +15,6 @@ capture_data/*
 saved_models/*
 *.txt
 plots/*
+capture_data_test/*
+capture_data_train/*
+capture_data_many_apps/*

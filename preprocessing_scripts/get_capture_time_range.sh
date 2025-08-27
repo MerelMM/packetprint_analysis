@@ -6,8 +6,12 @@ if ! command -v tshark &> /dev/null; then
     exit 1
 fi
 
+
+BASE_DIR="${BASE_DIR:-capture_data}"
+
 # Loop over all virtual_ap_filtered.pcap files
-find capture_data/ -type f -name "virtual_ap_filtered.pcap" | while read -r file; do
+find "$BASE_DIR" -type f -name "virtual_ap_filtered.pcap" | while read -r file; do
+
     echo "Processing $file..."
 
     first_time=$(tshark -r "$file" -T fields -e frame.time_epoch -c 1 2>/dev/null)
