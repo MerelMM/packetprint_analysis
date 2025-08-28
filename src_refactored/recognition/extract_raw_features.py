@@ -12,6 +12,7 @@ def extract_raw_features_segment(
     N: int = 1,
     output_dir: str = "data/lfm_features_segmented",
     load_features: bool = False,
+    seg_timings=None,
 ) -> List[Dict[str, Any]]:
     """
     Build hierarchical features per segment for a single app and save as a list:
@@ -30,8 +31,8 @@ def extract_raw_features_segment(
         return _get_lfm_features_per_app_segmented(app)
 
     all_features: List[Dict[str, Any]] = []
-
-    for seg in segments:
+    seg_timings_kept = []
+    for ix, seg in enumerate(segments):
         print(f"Processing segment for {app}")
 
         res = _construct_input_lfm_training(
@@ -57,7 +58,8 @@ def extract_raw_features_segment(
             "burst_lvl": bursts if bursts else [],
             "behavior_lvl": behavior if behavior else [],
         }
-
+        if seg_timings:
+            seg_timings_kept.append(seg_timings[ix])
         all_features.append(segment_features)
 
     out_path = os.path.join(output_dir, f"{app}")
@@ -65,7 +67,7 @@ def extract_raw_features_segment(
         pickle.dump(all_features, f)
     print(f"Saved per-segment features for {app} -> {out_path}")
 
-    return all_features
+    return all_features, seg_timings_kept
 
 
 def _construct_input_lfm_training(

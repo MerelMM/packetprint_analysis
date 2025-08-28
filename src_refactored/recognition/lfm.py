@@ -93,7 +93,9 @@ def recursive_lfm_training(
     return result
 
 
-def raw_features_to_lfm(app, segment_features, saved_path="data/lfm_models/"):
+def raw_features_to_lfm(
+    app, segment_features, saved_path="data/lfm_models/", seg_timings=None
+):
 
     # segment will be with its features
     saved_path = os.path.join(saved_path, f"{app}.pkl")
@@ -124,7 +126,8 @@ def raw_features_to_lfm(app, segment_features, saved_path="data/lfm_models/"):
     seg_fv = []
     seg_labels = []
 
-    for seg in segment_features:
+    seg_timings_kept = []
+    for seg_ix, seg in enumerate(segment_features):
         label = 0
 
         # extract all burst raw features and behavior raw features of the segment
@@ -192,8 +195,8 @@ def raw_features_to_lfm(app, segment_features, saved_path="data/lfm_models/"):
             label = max(label, window_5s[i]["label"])
 
         if len(fv_behavior) == 0:
-            print(seg)
             continue
+
         # if any of the behavior features have the word, the word is in the segment
         fv_behavior = np.vstack(fv_behavior)
         for col in range(len(V[0]) + len(V[1])):
@@ -207,10 +210,11 @@ def raw_features_to_lfm(app, segment_features, saved_path="data/lfm_models/"):
                 zt[ix + len(V[0]) + len(V[1])] = 1
 
         # lfm feature of segment completed
+        seg_timings_kept.append(seg_timings[seg_ix])
         seg_fv.append(zt)
         seg_labels.append(label)
 
-    return np.vstack(seg_fv), np.vstack(seg_labels)
+    return np.vstack(seg_fv), np.vstack(seg_labels), seg_timings_kept
 
 
 def _zt_behavior(window_5s, window_2s, V, idf_2, models, non_empty_burst_window):

@@ -1,8 +1,9 @@
 from preprocessing.run_preprocessing import run_preprocessing
 from preprocessing.packet_size_filtering import filter_packet_size_for_app
 from segmentation.run_segmentation import run_segmentation
-from preprocessing.concat_training_traces import concat_training_traces
-from recognition.run_recognition import run_recognition
+from preprocessing.concat_traces import concat_traces
+from recognition.run_recognition import run_recognition_wrapper
+from evaluate.evaluate import evaluate
 
 
 def split_train_test():
@@ -50,7 +51,7 @@ def train_from_scratch(app_key="com.google.android.youtube"):
     filtered_data = run_preprocessing(
         app_key, load_existing=False
     )  # will recompute filtering sizes and return filtered data for training s-xgboost
-    serialized_traces = concat_training_traces(
+    serialized_traces = concat_traces(
         app_key, load_existing=False, load_existing_filter=False
     )
 
@@ -64,13 +65,13 @@ def train_from_scratch(app_key="com.google.android.youtube"):
 
 
 if __name__ == "__main__":
-    # split_train_test()
-    # plots_preprocessing()
+    # # split_train_test()
+    # # plots_preprocessing()
     app_key = "com.google.android.youtube"
-    segments = run_segmentation(app_key, load_precomputed=True)
-    run_recognition(
-        app_key, segments, load_precomputed_features=True, pretrained_lfm=True
-    )
+    # segments = run_segmentation(app_key, load_precomputed=True)
+    # results = run_recognition_wrapper(app_key, segments, training=False)
+    # print(results)
+    evaluate(app_key)
 """ 
 Pipeline for in README:
 - capture data in capture_data path (or chosen one, but easiest)

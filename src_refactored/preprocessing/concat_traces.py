@@ -5,7 +5,7 @@ from preprocessing.packet_size_filtering import filter_packet_size_for_app
 from helper.helper import get_app_key
 
 
-def concat_training_traces(
+def concat_traces(
     app_key,
     data_path="capture_data_train",
     save_path="data/concatenated_train_trace.pkl",
