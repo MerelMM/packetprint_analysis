@@ -5,7 +5,7 @@ PacketPrint is a **three-phase architecture**:
 1. **Preprocessing** – filters and normalizes raw wireless packet traces.
 2. **Segmentation** – detects potential app-related segments using statistical and temporal features.
 3. **Recognition** – classifies which app generated each proposed segment using learned traffic patterns.
-4. 
+
 This implementation includes the entire workflow: from collecting and preprocessing data, through segment proposal, to final app classification.
 
 For capturing of the data the following tools were used:
