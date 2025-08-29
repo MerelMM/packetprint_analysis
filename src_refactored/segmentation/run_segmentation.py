@@ -1,3 +1,5 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 # from s_similarity import train_sxgboost_all_apps
 from segmentation.compute_ssimilarity import (
     train_sxgboost,
@@ -13,6 +15,7 @@ def run_segmentation(
     concatenated_data=None,
     split_filtered_data_to_train={},
     epsilon=30,
+    anchor_threshold=0.95,
     load_precomputed=False,
     load_pretrained=False,
 ):
@@ -22,7 +25,9 @@ def run_segmentation(
         app_key, split_filtered_data_to_train, load_pretrained=load_pretrained
     )
     scores = compute_s_similarity(models, concatenated_data)
-    anchor_timings = identify_anchor_packets(concatenated_data, scores)
+    anchor_timings = identify_anchor_packets(
+        concatenated_data, scores, anchor_threshold=anchor_threshold
+    )
     clusters = hac_clustering(anchor_timings, epsilon=epsilon)
     segments = get_segments(app_key, clusters, concatenated_data)
     return segments

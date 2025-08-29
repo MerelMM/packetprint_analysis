@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 # Configuration (must be passed in)
 BASE_DIR="$BASE_DIR"
 OUTPUT_FILE="all_packet_timings.txt"

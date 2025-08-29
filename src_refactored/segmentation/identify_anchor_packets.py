@@ -1,3 +1,5 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 def identify_anchor_packets(
     serialized_data,
     scores,

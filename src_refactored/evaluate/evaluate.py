@@ -1,3 +1,5 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 from segmentation.run_segmentation import run_segmentation
 from preprocessing.concat_traces import concat_traces
 from recognition.run_recognition import run_recognition_wrapper
@@ -81,3 +83,4 @@ def evaluate(app_key, threshold=0.1):
     print(f"Detected correctly (true positives): {true_positives}")
     print(f"Missed segments (false negatives): {false_negatives}")
     print(f"Wrongfully detected (false positives): {false_positives}")
+    return true_positives, false_negatives, false_positives

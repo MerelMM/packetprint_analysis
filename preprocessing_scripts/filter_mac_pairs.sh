@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 MAC1="fa:97:c8:94:78:8d"
 MAC2="dc:4e:f4:0a:42:6f"
 LOG_FILE="filter_mac_pairs_output.log"

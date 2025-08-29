@@ -1,3 +1,5 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 def get_app_key(session_name: str) -> str:
     """
     Extract the app name from a folder name formatted like:

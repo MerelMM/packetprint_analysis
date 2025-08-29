@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 # Configuration (must be passed in by the caller)
 ROOT_DIR="$ROOT_DIR"
 PCAP_NAME="${PCAP_NAME:-virtual_ap_filtered.pcap}"

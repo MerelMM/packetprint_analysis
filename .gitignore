@@ -18,3 +18,8 @@ plots/*
 capture_data_test/*
 capture_data_train/*
 capture_data_many_apps/*
+thesis_figures*
+backup*
+hyperparam_results*
+evaluation_results/*
+evaluation_results_conf2/*

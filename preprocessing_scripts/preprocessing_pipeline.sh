@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 set -e  # Exit on error
 
 # Absolute path to this script's directory

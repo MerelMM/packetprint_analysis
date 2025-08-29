@@ -1,9 +1,26 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 from preprocessing.run_preprocessing import run_preprocessing
 from preprocessing.packet_size_filtering import filter_packet_size_for_app
 from segmentation.run_segmentation import run_segmentation
 from preprocessing.concat_traces import concat_traces
-from recognition.run_recognition import run_recognition_wrapper
+from recognition.run_recognition import run_recognition
 from evaluate.evaluate import evaluate
+from recognition.extract_raw_features import extract_raw_features_segment
+from recognition.lfm import recursive_lfm_training, raw_features_to_lfm
+from recognition.extract_raw_features import extract_raw_features_segment
+from recognition.greedy_feature_representation import (
+    train_greedy_feature_representation,
+    create_D_pos_and_neg_direct_from_lfm,
+    compress_segment_fv,
+)
+from recognition.c_similarity import train_c_similarity_classifier, compute_c_similarity
+from collections import Counter
+import os
+import json
+from evaluate.train_and_evaluate import run_for_different_apps
+from evaluate.parameter_search import compare_hyper_parameters
+from evaluate.evaluate_segmentation import run_plotting_segmentation
 
 
 def split_train_test():
@@ -25,11 +42,11 @@ def split_train_test():
 
 
 def plots_preprocessing(app_key=None):
-    # from plots.plot_percent_packages_kept_per_app import (
-    #     plot_percent_packets_kept_per_app,
-    # )
+    from plots.plot_percent_packages_kept_per_app import (
+        plot_percent_packets_kept_per_app,
+    )
 
-    # plot_percent_packets_kept_per_app(app_key)
+    plot_percent_packets_kept_per_app(app_key)
     # from plots.plot_packet_size_historgram import (
     #     plot_packet_size_histogram,
     # )
@@ -47,31 +64,21 @@ def plots_preprocessing(app_key=None):
     pass
 
 
-def train_from_scratch(app_key="com.google.android.youtube"):
-    filtered_data = run_preprocessing(
-        app_key, load_existing=False
-    )  # will recompute filtering sizes and return filtered data for training s-xgboost
-    serialized_traces = concat_traces(
-        app_key, load_existing=False, load_existing_filter=False
-    )
-
-    # trains models and returns segments of the concatenated training data
-    segments = run_segmentation(
-        app_key,
-        concatenated_training_data=serialized_traces,
-        split_filtered_data_to_train=filtered_data,
-        load_precomputed=False,
-    )
-
-
 if __name__ == "__main__":
     # # split_train_test()
     # # plots_preprocessing()
-    app_key = "com.google.android.youtube"
+    app_key = "com.substack.app"
+    # plots_preprocessing(app_key)
     # segments = run_segmentation(app_key, load_precomputed=True)
     # results = run_recognition_wrapper(app_key, segments, training=False)
     # print(results)
-    evaluate(app_key)
+    # evaluate(app_key)
+    # app_key = "com.pinterest"
+
+    # app_key = "bbc.mobile.news.ww"
+    # compare_hyper_parameters(app_key)
+    # run_for_different_apps()
+    run_plotting_segmentation()
 """ 
 Pipeline for in README:
 - capture data in capture_data path (or chosen one, but easiest)

@@ -1,3 +1,5 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 """extracts raw features on 3 time scales."""
 
 from typing import List, Dict, Any
@@ -58,7 +60,7 @@ def extract_raw_features_segment(
             "burst_lvl": bursts if bursts else [],
             "behavior_lvl": behavior if behavior else [],
         }
-        if seg_timings:
+        if seg_timings is not None:
             seg_timings_kept.append(seg_timings[ix])
         all_features.append(segment_features)
 

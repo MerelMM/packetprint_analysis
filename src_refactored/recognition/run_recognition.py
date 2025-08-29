@@ -1,3 +1,5 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 from recognition.lfm import recursive_lfm_training, raw_features_to_lfm
 from recognition.extract_raw_features import extract_raw_features_segment
 from recognition.greedy_feature_representation import (
@@ -22,7 +24,7 @@ def run_recognition(
     raw_segment_features, seg_timings = extract_raw_features_segment(
         app_key,
         segments,
-        load_features=load_precomputed_features,
+        load_features=load_precomputed_features,  # both training and testing write to the same one!!
         seg_timings=seg_timings,
     )
 
@@ -37,7 +39,9 @@ def run_recognition(
 
     # Step 4: Compression training (optional) and Step 5: Apply compression to get final feature vectors
     if not pretrained_compression:
-        D_pos, D_neg = create_D_pos_and_neg_direct_from_lfm(lfm_fvs, lfm_labels)
+        D_pos, D_neg, lfm_fvs, lfm_labels = create_D_pos_and_neg_direct_from_lfm(
+            app_key, lfm_fvs, lfm_labels
+        )
         _ = train_greedy_feature_representation(app_key, D_pos, D_neg)
         # idf computation included
         fvs = compress_segment_fv(app_key, lfm_fvs, training=True)

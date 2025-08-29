@@ -1,7 +1,13 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 import numpy as np
 import os
 import pickle
 from typing import List, Tuple
+import random
+from helper.helper import get_app_key
+from recognition.lfm import raw_features_to_lfm
+from recognition.extract_raw_features import extract_raw_features_segment
 
 
 def compress_segment_fv(
@@ -54,27 +60,93 @@ def compress_segment_fv(
 
 
 def create_D_pos_and_neg_direct_from_lfm(
-    lfm_features: np.ndarray, lfm_labels: np.ndarray
+    app_key: str,
+    lfm_features: np.ndarray,
+    lfm_labels: np.ndarray,
+    training_data_dir="capture_data_train",
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-    """this function for if enough negative segments were already in the proposed segments"""
+    """
+    Create positive and negative training sets directly from LFM features.
+    If there are not enough negative samples, supplement them using filtered traffic from other apps.
+    """
     D_pos = []
     D_neg = []
+
+    # Split based on labels
     for ix, label in enumerate(lfm_labels):
         if label == 1:
             D_pos.append(lfm_features[ix].astype(int))
         elif label == 0:
             D_neg.append(lfm_features[ix].astype(int))
         else:
-            raise Exception("label should be 0 or 1")
-    if len(D_pos) > len(D_neg):
-        print(
-            "There are more positive segments than negative ones so might want to add some additional ones here."
+            raise Exception("Label should be 0 or 1")
+
+    # If not enough negatives, supplement from other apps
+    if True:  # len(D_pos) > len(D_neg) -- but now always 10 at least
+        n_extra_segs = max((len(D_pos) - len(D_neg)), 0) + 10
+
+        # Load filtered traffic
+        traffic_path = f"data/split_filtered_data_{app_key}.pkl"
+        with open(traffic_path, "rb") as f:
+            filtered_packets = pickle.load(f)
+
+        # Get shuffled list of session paths
+        paths = os.listdir(training_data_dir)
+        random.seed(42)
+        random.shuffle(paths)
+
+        new_segs = []
+        used = 1
+
+        for path in paths:
+            if get_app_key(path) == app_key:  # don' add positive segments
+                continue
+            if used > n_extra_segs:
+                break
+            # Get segments from other app
+            if path not in filtered_packets:  # data isn't there
+                print(
+                    "check, is weird that path isnt in filtered packets (D_neg creation when dpos>dneg)"
+                )
+                continue
+
+            data = filtered_packets[path]
+            timestamps = [t for (t, _) in data]
+            packet_sizes = [s for (_, s) in data]
+            new_segs.append(
+                {
+                    "timestamps": timestamps,
+                    "packet_sizes": packet_sizes,
+                    "labels": [0] * len(packet_sizes),
+                }
+            )
+            used += 1
+
+        if not new_segs:
+            raise Exception("No new segments found to supplement negatives.")
+
+        # Extract features from new segments
+        raw_segment_features, _ = extract_raw_features_segment(
+            app=app_key,
+            segments=new_segs,
+            load_features=False,
+            seg_timings=None,
         )
+        lfm_fvs_neg, _, _ = raw_features_to_lfm(
+            app_key,
+            raw_segment_features,
+            seg_timings=None,
+        )
+        for fv in lfm_fvs_neg:
+            D_neg.append(fv.astype(int))
+
     if len(D_pos) == 0:
         raise Exception("D_pos should not be empty")
     if len(D_neg) == 0:
-        raise Exception
-    return D_pos, D_neg
+        raise Exception("D_neg should not be empty")
+    lfm_training_features_new = np.vstack([lfm_features, lfm_fvs_neg])
+    lfm_training_labels_new = np.vstack([lfm_labels, np.zeros((len(lfm_fvs_neg), 1))])
+    return D_pos, D_neg, lfm_training_features_new, lfm_training_labels_new
 
 
 def train_greedy_feature_representation(

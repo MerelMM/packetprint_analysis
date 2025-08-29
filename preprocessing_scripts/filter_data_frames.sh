@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 # Default input/output directories
 INPUT_DIR="${INPUT_DIR:-capture}"
 OUTPUT_DIR="${OUTPUT_DIR:-capture_data}"

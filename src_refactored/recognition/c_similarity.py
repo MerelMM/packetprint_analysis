@@ -1,3 +1,5 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import cross_val_score, StratifiedKFold
@@ -61,7 +63,7 @@ def train_c_similarity_classifier(
     # Convert to numpy arrays if not already
     X = np.array(fvs)
     y = np.array(lfm_labels)
-
+    y = y.ravel()
     # Train logistic regression classifier
     model = LogisticRegression(penalty="l2", solver="liblinear", max_iter=1000)
     model.fit(X, y)

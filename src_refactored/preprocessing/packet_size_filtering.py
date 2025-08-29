@@ -1,3 +1,5 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 from typing import List, Tuple
 from .load_raw_data import (
     get_frame_sizes_per_app,

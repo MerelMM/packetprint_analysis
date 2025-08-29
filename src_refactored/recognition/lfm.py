@@ -1,3 +1,5 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 from typing import TypedDict, DefaultDict, List, Tuple, Dict, Any
 import numpy as np
 from sklearn.tree import DecisionTreeClassifier
@@ -16,8 +18,7 @@ class LFMTrainingResult(TypedDict):
 
 
 def recursive_lfm_training(
-    app,
-    segment_features_list,
+    app, segment_features_list, max_tree_depth=7
 ) -> LFMTrainingResult:
     """
     Recursive LFM Training as in Algorithm 2.
@@ -71,7 +72,7 @@ def recursive_lfm_training(
             )
 
         # train mapper at the current scale
-        model = DecisionTreeClassifier(max_depth=7)
+        model = DecisionTreeClassifier(max_depth=max_tree_depth)
         if len(z) > 0:
             model.fit(z, y)
         models[s] = model
@@ -210,7 +211,8 @@ def raw_features_to_lfm(
                 zt[ix + len(V[0]) + len(V[1])] = 1
 
         # lfm feature of segment completed
-        seg_timings_kept.append(seg_timings[seg_ix])
+        if seg_timings is not None:
+            seg_timings_kept.append(seg_timings[seg_ix])
         seg_fv.append(zt)
         seg_labels.append(label)
 

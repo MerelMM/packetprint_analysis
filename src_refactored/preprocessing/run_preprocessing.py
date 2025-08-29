@@ -1,20 +1,9 @@
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 from .packet_size_filtering import filter_packet_size_for_app
 import os
 import pickle
 from helper.helper import get_app_key
-
-
-def run_preprocessing_for_app(
-    load_existing=True,
-    data_path: str = "capture_data_train",
-    save_path: str = "data/split_filtered_data.pkl",
-):
-    if load_existing:
-        try:
-            with open(save_path, "rb") as f:
-                return pickle.load(f)
-        except:
-            Exception("Cannot load the filtered data, path doesn't exist.")
 
 
 def run_preprocessing(

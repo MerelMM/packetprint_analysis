@@ -1,5 +1,6 @@
 #!/bin/bash
-
+# This script was developed with assistance from ChatGPT (OpenAI) and Github Copilot
+# Final implementation and adaptation by Merel Haenaets.
 # Ensure required tool is installed
 if ! command -v tshark &> /dev/null; then
     echo "tshark not found. Please install Wireshark/tshark."
